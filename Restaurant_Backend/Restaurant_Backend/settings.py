@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "accounts_app",
     "rbac_app",
     "tables_app",
+    "menu_app"
 ]
 
 MIDDLEWARE = [
