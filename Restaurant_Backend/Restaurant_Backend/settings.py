@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "accounts_app",
     "rbac_app",
+    "tables_app",
 ]
 
 MIDDLEWARE = [
