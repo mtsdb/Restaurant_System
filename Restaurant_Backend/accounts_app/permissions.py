@@ -8,5 +8,8 @@ class IsAdminRole(BasePermission):
         user = request.user
         if not user or not user.is_authenticated:
             return False
+        # Superusers should always be allowed
+        if getattr(user, "is_superuser", False):
+            return True
         role = getattr(user, "role", None)
         return bool(role and getattr(role, "is_admin", False))

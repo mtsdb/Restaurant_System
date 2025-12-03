@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from .models import User, Role
+from .models import User
+from rbac_app.models import Role
 
 
 @admin.register(Role)

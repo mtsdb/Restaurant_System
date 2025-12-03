@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import User, Role
+from .models import User
+from rbac_app.models import Role
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -29,7 +30,10 @@ class UserCreateSerializer(serializers.ModelSerializer):
         role_id = validated_data.pop("role_id", None)
         role = None
         if role_id:
-            role = Role.objects.get(id=role_id)
+            try:
+                role = Role.objects.get(id=role_id)
+            except Role.DoesNotExist:
+                raise serializers.ValidationError({"role_id": "Invalid role_id"})
         user = User(username=validated_data.get("username"), role=role, is_active=validated_data.get("is_active", True))
         user.set_password(password)
         user.save()
@@ -48,7 +52,13 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password", None)
         role_id = validated_data.pop("role_id", None)
         if role_id is not None:
-            instance.role = Role.objects.get(id=role_id) if role_id else None
+            if role_id:
+                try:
+                    instance.role = Role.objects.get(id=role_id)
+                except Role.DoesNotExist:
+                    raise serializers.ValidationError({"role_id": "Invalid role_id"})
+            else:
+                instance.role = None
         for attr, val in validated_data.items():
             setattr(instance, attr, val)
         if password:

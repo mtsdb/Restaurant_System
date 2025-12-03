@@ -1,10 +1,11 @@
+
 from django.contrib.auth import authenticate
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.authtoken.models import Token
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserUpdateSerializer
@@ -14,7 +15,7 @@ from .permissions import IsAdminRole
 class LoginAPIView(APIView):
 	"""POST /api/auth/login/ - returns token and user info"""
 
-	permission_classes = []
+	permission_classes = [AllowAny]
 
 	def post(self, request):
 		username = request.data.get("username")
@@ -24,8 +25,12 @@ class LoginAPIView(APIView):
 		user = authenticate(request, username=username, password=password)
 		if user is None:
 			return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-		token, _ = Token.objects.get_or_create(user=user)
-		data = {"token": token.key, "user": UserSerializer(user).data}
+		refresh = RefreshToken.for_user(user)
+		data = {
+			"refresh": str(refresh),
+			"access": str(refresh.access_token),
+			"user": UserSerializer(user).data,
+		}
 		return Response(data)
 
 
