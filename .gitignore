@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+# Environments
+.env
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
+
+# Virtualenv / pyenv / poetry
+.python-version
+poetry.lock
+
+# SQLite
+db.sqlite3
+*.sqlite3
+*.sqlite3-journal
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# C extensions
+*.so
+
+# Logs and local settings
+*.log
+local_settings.py
+
+# Editors / OS files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Caches
+.mypy_cache/
+.cache/
+pip-log.txt
+
+# Misc
+coverage.xml
+nosetests.xml
+celerybeat-schedule
+
+# Ignore hidden env files anywhere
+**/.env
+**/__pycache__/
+**/db.sqlite3
+
+
+# Django static + media (if collected/generated locally)
+static/
+staticfiles/
+media/
+
+# Django translations build
+*.m
+
