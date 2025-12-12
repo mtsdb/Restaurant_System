@@ -53,3 +53,15 @@ class ItemRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 			return [IsAuthenticated(), IsAdminRole()]
 		return [IsAuthenticated()]
 
+
+class CategoryRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
+	queryset = Category.objects.all()
+	serializer_class = CategorySerializer
+	permission_classes = (IsAuthenticated,)
+
+	def get_permissions(self):
+		# PATCH and DELETE require admin
+		if self.request.method in ("PATCH", "PUT", "DELETE"):
+			return [IsAuthenticated(), IsAdminRole()]
+		return [IsAuthenticated()]
+

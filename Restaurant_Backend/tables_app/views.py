@@ -103,3 +103,20 @@ class RequestBillAPIView(generics.GenericAPIView):
 
 		serializer = TableSessionSerializer(session)
 		return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ActiveSessionsListAPIView(generics.GenericAPIView):
+	permission_classes = (IsAuthenticated,)
+
+	def get(self, request):
+		sessions = TableSession.objects.filter(status=TableSession.STATUS_ACTIVE).select_related("table").order_by("table__number")
+		data = [
+			{
+				"id": s.id,
+				"table": getattr(s.table, "number", None),
+				"bill_requested": s.bill_requested,
+				"bill_requested_at": s.bill_requested_at,
+			}
+			for s in sessions
+		]
+		return Response(data, status=status.HTTP_200_OK)

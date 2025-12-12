@@ -127,3 +127,46 @@ class MarkInvoicePaidAPIView(generics.UpdateAPIView):
         invoice.save()
         serializer = InvoiceSerializer(invoice)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class InvoiceRetrieveAPIView(generics.GenericAPIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, pk):
+        # Only cashier or admin can view invoice details
+        if not _user_has_role(request.user, "cashier") and not getattr(request.user, "is_superuser", False) and not getattr(getattr(request.user, 'role', None), 'is_admin', False):
+            return Response({"detail": "You do not have permission to view invoices."}, status=status.HTTP_403_FORBIDDEN)
+
+        invoice = get_object_or_404(Invoice, pk=pk)
+        session = invoice.session
+        # Collect items for the whole session
+        qs = OrderItem.objects.filter(order__session=session).select_related("item", "order__created_by")
+        items = []
+        waiter_names_set = set()
+        for it in qs:
+            waiter = getattr(getattr(it.order, "created_by", None), "get_full_name", None)
+            waiter_name = None
+            if callable(waiter):
+                waiter_name = waiter() or None
+            if not waiter_name:
+                waiter_name = getattr(getattr(it.order, "created_by", None), "username", None)
+            if waiter_name:
+                waiter_names_set.add(waiter_name)
+            items.append({
+                "id": it.id,
+                "name": getattr(getattr(it, "item", None), "name", None),
+                "quantity": it.quantity,
+                "unit_price": str(it.price_snapshot),
+                "line_total": str(it.price_snapshot * it.quantity),
+                "status": it.status,
+            })
+
+        serializer = InvoiceSerializer(invoice)
+        data = serializer.data
+        data.update({
+            "session": session.id,
+            "table": getattr(getattr(session, "table", None), "number", None),
+            "items": items,
+            "waiters": sorted(waiter_names_set),
+        })
+        return Response(data, status=status.HTTP_200_OK)

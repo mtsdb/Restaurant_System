@@ -17,7 +17,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from tables_app.views import SessionRetrieveAPIView, RequestBillAPIView
+from tables_app.views import SessionRetrieveAPIView, RequestBillAPIView, ActiveSessionsListAPIView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -30,5 +30,6 @@ urlpatterns = [
     path("api/", include("orders_app.urls")),
     # session detail endpoint accessible at /api/sessions/<id>/ per spec
     path("api/sessions/<int:pk>/", SessionRetrieveAPIView.as_view(), name="session-detail-root"),
+    path("api/sessions/active/", ActiveSessionsListAPIView.as_view(), name="sessions-active"),
     path("api/sessions/<int:pk>/request-bill/", RequestBillAPIView.as_view(), name="session-request-bill"),
 ]
