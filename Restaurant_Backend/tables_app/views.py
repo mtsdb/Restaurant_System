@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from accounts_app.permissions import IsAdminRole
 from .models import Table, TableSession
@@ -82,3 +83,23 @@ class SessionRetrieveAPIView(generics.RetrieveAPIView):
 	queryset = TableSession.objects.all()
 	serializer_class = TableSessionSerializer
 	permission_classes = (IsAuthenticated,)
+
+
+class RequestBillAPIView(generics.GenericAPIView):
+	permission_classes = (IsAuthenticated,)
+
+	def post(self, request, pk):
+		# Only waiter (or admin/superuser) can request bill
+		if not _user_has_role(request.user, "waiter") and not getattr(request.user, "is_superuser", False) and not getattr(getattr(request.user, 'role', None), 'is_admin', False):
+			return Response({"detail": "You do not have permission to request a bill."}, status=status.HTTP_403_FORBIDDEN)
+
+		session = get_object_or_404(TableSession, pk=pk)
+		if session.status != TableSession.STATUS_ACTIVE:
+			return Response({"detail": "Session is not active."}, status=status.HTTP_400_BAD_REQUEST)
+
+		session.bill_requested = True
+		session.bill_requested_at = timezone.now()
+		session.save()
+
+		serializer = TableSessionSerializer(session)
+		return Response(serializer.data, status=status.HTTP_200_OK)

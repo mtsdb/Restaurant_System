@@ -32,6 +32,8 @@ class TableSession(models.Model):
 	started_at = models.DateTimeField(default=timezone.now)
 	ended_at = models.DateTimeField(null=True, blank=True)
 	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+	bill_requested = models.BooleanField(default=False)
+	bill_requested_at = models.DateTimeField(null=True, blank=True)
 
 	class Meta:
 		ordering = ("-started_at",)

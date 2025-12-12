@@ -14,5 +14,5 @@ class TableSessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TableSession
-        fields = ("id", "table", "table_id", "started_at", "ended_at", "status")
-        read_only_fields = ("started_at", "ended_at", "status")
+        fields = ("id", "table", "table_id", "started_at", "ended_at", "status", "bill_requested", "bill_requested_at")
+        read_only_fields = ("started_at", "ended_at", "status", "bill_requested", "bill_requested_at")

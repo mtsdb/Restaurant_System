@@ -88,9 +88,16 @@ class OrderItemStatusUpdateAPIView(generics.UpdateAPIView):
 
 	def patch(self, request, pk):
 		order_item = get_object_or_404(OrderItem, pk=pk)
-		# Only chef or waiter (or admin) can update statuses
-		if not (_user_has_role(request.user, "chef") or _user_has_role(request.user, "waiter") or getattr(request.user, "is_superuser", False) or getattr(getattr(request.user, 'role', None), 'is_admin', False)):
+		# Only chef, barista, waiter, or admin can update statuses
+		if not (_user_has_role(request.user, "chef") or _user_has_role(request.user, "barista") or _user_has_role(request.user, "waiter") or getattr(request.user, "is_superuser", False) or getattr(getattr(request.user, 'role', None), 'is_admin', False)):
 			return Response({"detail": "You do not have permission to update item status."}, status=status.HTTP_403_FORBIDDEN)
+
+		# Role-based domain restriction
+		item_type = order_item.item.type
+		if _user_has_role(request.user, "chef") and item_type != MenuItem.TYPE_FOOD:
+			return Response({"detail": "Chefs can only update food items."}, status=status.HTTP_403_FORBIDDEN)
+		if _user_has_role(request.user, "barista") and item_type != MenuItem.TYPE_DRINK:
+			return Response({"detail": "Baristas can only update drink items."}, status=status.HTTP_403_FORBIDDEN)
 
 		status_value = request.data.get("status")
 		if status_value not in dict(OrderItem.STATUS_CHOICES):
@@ -184,6 +191,84 @@ class KitchenDashboardAPIView(APIView):
 
 		data = {
 			"food": {
+				"waiting": counts[OrderItem.STATUS_WAITING],
+				"in_progress": counts[OrderItem.STATUS_IN_PROGRESS],
+				"ready": counts[OrderItem.STATUS_READY],
+				"total_pending": counts[OrderItem.STATUS_WAITING] + counts[OrderItem.STATUS_IN_PROGRESS],
+			},
+			"updated_at": timezone.now(),
+		}
+		return Response(data, status=status.HTTP_200_OK)
+
+
+class BaristaOrderItemListAPIView(generics.ListAPIView):
+	serializer_class = OrderItemSerializer
+	permission_classes = (IsAuthenticated,)
+
+	def get(self, request):
+		# Allow barista, waiter, or admin to view barista items
+		if not (_user_has_role(request.user, "barista") or _user_has_role(request.user, "waiter") or getattr(request.user, "is_superuser", False) or getattr(getattr(request.user, 'role', None), 'is_admin', False)):
+			return Response({"detail": "You do not have permission to view barista items."}, status=status.HTTP_403_FORBIDDEN)
+
+		qs = OrderItem.objects.select_related("order", "item", "order__session", "order__session__table").filter(
+			item__type=MenuItem.TYPE_DRINK
+		)
+
+		# Filters
+		status_param = request.query_params.get("status")
+		if status_param:
+			allowed_statuses = set(dict(OrderItem.STATUS_CHOICES).keys())
+			requested = {s.strip() for s in status_param.split(",") if s.strip()}
+			valid = list(requested & allowed_statuses)
+			if valid:
+				qs = qs.filter(status__in=valid)
+
+		table_param = request.query_params.get("table")
+		if table_param:
+			try:
+				qs = qs.filter(order__session__table__number=int(table_param))
+			except ValueError:
+				pass
+
+		session_param = request.query_params.get("session")
+		if session_param:
+			try:
+				qs = qs.filter(order__session_id=int(session_param))
+			except ValueError:
+				pass
+
+		qs = qs.order_by("created_at")
+		serializer = OrderItemSerializer(qs, many=True)
+		return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BaristaDashboardAPIView(APIView):
+	permission_classes = (IsAuthenticated,)
+
+	def get(self, request):
+		# Allow barista, waiter, or admin to view dashboard
+		if not (_user_has_role(request.user, "barista") or _user_has_role(request.user, "waiter") or getattr(request.user, "is_superuser", False) or getattr(getattr(request.user, 'role', None), 'is_admin', False)):
+			return Response({"detail": "You do not have permission to view the barista dashboard."}, status=status.HTTP_403_FORBIDDEN)
+
+		base_qs = OrderItem.objects.filter(item__type=MenuItem.TYPE_DRINK)
+
+		# Optional status filter (same as list endpoint) to scope dashboard
+		status_param = request.query_params.get("status")
+		if status_param:
+			allowed_statuses = set(dict(OrderItem.STATUS_CHOICES).keys())
+			requested = {s.strip() for s in status_param.split(",") if s.strip()}
+			valid = list(requested & allowed_statuses)
+			if valid:
+				base_qs = base_qs.filter(status__in=valid)
+
+		counts = {OrderItem.STATUS_WAITING: 0, OrderItem.STATUS_IN_PROGRESS: 0, OrderItem.STATUS_READY: 0}
+		for row in base_qs.values("status").annotate(c=Count("id")):
+			s = row["status"]
+			if s in counts:
+				counts[s] = row["c"]
+
+		data = {
+			"drink": {
 				"waiting": counts[OrderItem.STATUS_WAITING],
 				"in_progress": counts[OrderItem.STATUS_IN_PROGRESS],
 				"ready": counts[OrderItem.STATUS_READY],
