@@ -2,6 +2,9 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from django.utils import timezone
+from django.db.models import Count
 
 from accounts_app.permissions import IsAdminRole
 from .models import Order, OrderItem
@@ -111,3 +114,81 @@ class OrderItemDeleteAPIView(generics.DestroyAPIView):
 		order_item = get_object_or_404(OrderItem, pk=pk)
 		order_item.delete()
 		return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class KitchenOrderItemListAPIView(generics.ListAPIView):
+	serializer_class = OrderItemSerializer
+	permission_classes = (IsAuthenticated,)
+
+	def get(self, request):
+		# Allow chef, waiter, or admin to view kitchen items
+		if not (_user_has_role(request.user, "chef") or _user_has_role(request.user, "waiter") or getattr(request.user, "is_superuser", False) or getattr(getattr(request.user, 'role', None), 'is_admin', False)):
+			return Response({"detail": "You do not have permission to view kitchen items."}, status=status.HTTP_403_FORBIDDEN)
+
+		qs = OrderItem.objects.select_related("order", "item", "order__session", "order__session__table").filter(
+			item__type=MenuItem.TYPE_FOOD
+		)
+
+		# Filters
+		status_param = request.query_params.get("status")
+		if status_param:
+			allowed_statuses = set(dict(OrderItem.STATUS_CHOICES).keys())
+			requested = {s.strip() for s in status_param.split(",") if s.strip()}
+			valid = list(requested & allowed_statuses)
+			if valid:
+				qs = qs.filter(status__in=valid)
+
+		table_param = request.query_params.get("table")
+		if table_param:
+			try:
+				qs = qs.filter(order__session__table__number=int(table_param))
+			except ValueError:
+				pass
+
+		session_param = request.query_params.get("session")
+		if session_param:
+			try:
+				qs = qs.filter(order__session_id=int(session_param))
+			except ValueError:
+				pass
+
+		qs = qs.order_by("created_at")
+		serializer = OrderItemSerializer(qs, many=True)
+		return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class KitchenDashboardAPIView(APIView):
+	permission_classes = (IsAuthenticated,)
+
+	def get(self, request):
+		# Allow chef, waiter, or admin to view dashboard
+		if not (_user_has_role(request.user, "chef") or _user_has_role(request.user, "waiter") or getattr(request.user, "is_superuser", False) or getattr(getattr(request.user, 'role', None), 'is_admin', False)):
+			return Response({"detail": "You do not have permission to view the kitchen dashboard."}, status=status.HTTP_403_FORBIDDEN)
+
+		base_qs = OrderItem.objects.filter(item__type=MenuItem.TYPE_FOOD)
+
+		# Optional status filter (same as list endpoint) to scope dashboard
+		status_param = request.query_params.get("status")
+		if status_param:
+			allowed_statuses = set(dict(OrderItem.STATUS_CHOICES).keys())
+			requested = {s.strip() for s in status_param.split(",") if s.strip()}
+			valid = list(requested & allowed_statuses)
+			if valid:
+				base_qs = base_qs.filter(status__in=valid)
+
+		counts = {OrderItem.STATUS_WAITING: 0, OrderItem.STATUS_IN_PROGRESS: 0, OrderItem.STATUS_READY: 0}
+		for row in base_qs.values("status").annotate(c=Count("id")):
+			s = row["status"]
+			if s in counts:
+				counts[s] = row["c"]
+
+		data = {
+			"food": {
+				"waiting": counts[OrderItem.STATUS_WAITING],
+				"in_progress": counts[OrderItem.STATUS_IN_PROGRESS],
+				"ready": counts[OrderItem.STATUS_READY],
+				"total_pending": counts[OrderItem.STATUS_WAITING] + counts[OrderItem.STATUS_IN_PROGRESS],
+			},
+			"updated_at": timezone.now(),
+		}
+		return Response(data, status=status.HTTP_200_OK)
