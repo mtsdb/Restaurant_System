@@ -26,6 +26,7 @@ urlpatterns = [
     path("api/tables/", include("tables_app.urls")),
     path("api/menu/", include("menu_app.urls")),
     path("api/billing/", include("billing_app.urls")),
+    path("api/settings/", include("settings_app.urls")),
     path("api/", include("orders_app.urls")),
     # session detail endpoint accessible at /api/sessions/<id>/ per spec
     path("api/sessions/<int:pk>/", SessionRetrieveAPIView.as_view(), name="session-detail-root"),
